@@ -46,24 +46,6 @@ end)
 
 local maxChatDist = 1000^2
 hook.Add( "Initialize", "ARCPhone Overrides", function()
-	local GAMEMODE_PlayerCanHearPlayersVoice = GAMEMODE.PlayerCanHearPlayersVoice
-
-	GAMEMODE.PlayerCanHearPlayersVoice = function(gm,otherguy,loudMouth)
-		if !ARCPhone.Calls then return end
-		for k,v in pairs(ARCPhone.Calls) do
-			if table.HasValue(v.on,ARCPhone.GetPhoneNumber(otherguy)) && table.HasValue(v.on,ARCPhone.GetPhoneNumber(loudMouth)) then
-				return true,false
-			end
-		end
-		if ARCPhone.Settings.override_voice_chat then
-			if otherguy:GetPos():DistToSqr(loudMouth:GetPos()) < maxChatDist then
-				return true,true
-			else
-				return false,false
-			end
-		end
-		return GAMEMODE_PlayerCanHearPlayersVoice(gm,otherguy,loudMouth)
-	end
 	GAMEMODE_PlayerCanSeePlayersChat = GAMEMODE.PlayerCanSeePlayersChat
 	
 	GAMEMODE.PlayerCanSeePlayersChat = function(gm, text, teamOnly, otherguy, speaker)
@@ -79,6 +61,37 @@ hook.Add( "Initialize", "ARCPhone Overrides", function()
 	end
 end )
 
+local function canHear(l, t)
+	if !ARCPhone.Calls then return end
+	for k,v in pairs(ARCPhone.Calls) do
+		if table.HasValue(v.on,ARCPhone.GetPhoneNumber(l)) && table.HasValue(v.on,ARCPhone.GetPhoneNumber(t)) then
+			return true
+		end
+	end
+end
+hook.Add("PlayerCanHearPlayersVoice", "arcphone_VoiceManagement", canHear)
+
+local function voiceBoxCanHear(l, t)
+	if !ARCPhone.Calls then return end
+	for k,v in pairs(ARCPhone.Calls) do
+		if table.HasValue(v.on,ARCPhone.GetPhoneNumber(l)) && table.HasValue(v.on,ARCPhone.GetPhoneNumber(t)) then
+			VoiceBox.FX.IsPhoneComm(l:EntIndex(), t:EntIndex(), not VoiceBox.FX.__PlayerCanHearPlayersVoice(l, t))
+			return true
+		end
+	end
+	if l.aphoneCallID and t.aphoneCallID and l.aphoneCallID == t.aphoneCallID and !aphone.Call.Table[t.aphoneCallID].pending then
+		VoiceBox.FX.IsPhoneComm(l:EntIndex(), t:EntIndex(), not VoiceBox.FX.__PlayerCanHearPlayersVoice(l, t))
+		return true
+	end
+	VoiceBox.FX.IsPhoneComm(l:EntIndex(), t:EntIndex(), false)
+end
+if VoiceBox and VoiceBox.FX then
+	hook.Add("PlayerCanHearPlayersVoice", "arcphone_VoiceManagement", voiceBoxCanHear)
+else
+	hook.Add("VoiceBox.FX", "APhone", function()
+		hook.Add("PlayerCanHearPlayersVoice", "arcphone_VoiceManagement", voiceBoxCanHear)
+	end)
+end
 
 hook.Add( "PlayerSay", "ARCPhone CallText", function( loudMouth, text, t )
 	if !ARCPhone.Calls then return end
