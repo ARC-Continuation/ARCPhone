@@ -6,6 +6,7 @@
 
 --Check if the thing is running
 util.AddNetworkString("arcphone_nutscript_number")
+util.AddNetworkString("arcphone_calling")
 
 util.AddNetworkString( "arcphone_phone_settings" )
 net.Receive( "arcphone_phone_settings", function(length,ply) -- Can't wait until people exploit this to make rainbow phones.
@@ -69,6 +70,7 @@ end)
 
 util.AddNetworkString( "arcphone_comm_call" )
 
+local oncalling = {}
 net.Receive( "arcphone_comm_call", function(length,ply)
 	local operation = net.ReadInt(8)
 	local number = net.ReadString()
@@ -87,21 +89,52 @@ net.Receive( "arcphone_comm_call", function(length,ply)
 	elseif operation == 1 then
 		if ply.ARCPhone_Status != ARCPHONE_ERROR_CALL_ENDED then return end
 		if number then
-			ARCPhone.MakeCall(ARCPhone.GetPhoneNumber(ply),number)
-			ARCPhone.Msg(ARCPhone.GetPhoneNumber(ply).." is calling "..number)
+			local num1 = ARCPhone.GetPhoneNumber(ply)
+			local user2 = ARCPhone.GetPlayerFromPhoneNumber(number)
+			ARCPhone.MakeCall(num1,number)
+			ARCPhone.Msg(num1.." is calling "..number)
+			if ARCPhone.SpecialSettings.EmergencyNumbers[number] then
+				hook.Run("arcphone_calling", 1, ply, num1, nil, number, true)
+				oncalling[ply:SteamID64()] = {}
+				oncalling[ply:SteamID64()]["user1"] = ply
+				oncalling[ply:SteamID64()]["num1"] = num1
+				oncalling[ply:SteamID64()]["user2"] = user2
+				oncalling[ply:SteamID64()]["num2"] = number
+			else
+				hook.Run("arcphone_calling", 1, ply, num1, user2, number, false)
+				oncalling[ply:SteamID64()] = {}
+				oncalling[ply:SteamID64()]["user1"] = ply
+				oncalling[ply:SteamID64()]["num1"] = num1
+				oncalling[ply:SteamID64()]["user2"] = user2
+				oncalling[ply:SteamID64()]["num2"] = number
+				oncalling[user2:SteamID64()] = {}
+				oncalling[user2:SteamID64()]["user1"] = user2
+				oncalling[user2:SteamID64()]["num1"] = number
+				oncalling[user2:SteamID64()]["user2"] = ply
+				oncalling[user2:SteamID64()]["num2"] = num1
+			end
 		else
 			ARCPhone.MsgCL(ply,"No Phone number specified." )
 		end
 	elseif operation == 2 then
 		ARCPhone.AnswerCall(ARCPhone.GetPhoneNumber(ply))
+		local dd = oncalling[ply:SteamID64()]
+		if dd then
+			hook.Run("arcphone_calling", 2, dd["user1"], dd["num1"], dd["user2"], dd["num2"], false)
+		end
 	elseif operation == 3 then
 		ARCPhone.HangUp(ARCPhone.GetPhoneNumber(ply))
+		local dd = oncalling[ply:SteamID64()]
+		if dd then
+			hook.Run("arcphone_calling", 3, dd["user1"], dd["num1"], dd["user2"], dd["num2"], false)
+		end
 	elseif operation == 4 then
 		if ply.ARCPhone_Status != ARCPHONE_ERROR_NONE then
 			ARCPhone.MsgCL(ply,"No call running or call has not been established.")
 		else
 			ARCPhone.AddToCall(ARCPhone.GetPhoneNumber(ply),number)
 		end
+		print('4: ARCPhone 4')
 	else
 		ARCPhone.MsgCL(ply,"Invalid operation" )
 	end
